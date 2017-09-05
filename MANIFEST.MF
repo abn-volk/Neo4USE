@@ -1,0 +1,5 @@
+Manifest-Version: 0.1
+Plugin-Name: Neo4USE
+Plugin-Version: 0.1
+Main-Class: org.uet.neo4use.plugin.Neo4USEPlugin
+Plugin-Publisher: UET
