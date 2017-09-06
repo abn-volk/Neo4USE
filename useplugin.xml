@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?use version="4.2.0"?>
 <plugin name="Neo4USE" version="0.1">
+	<action label="Open USE script"
+			class="org.uet.neo4use.actions.ActionOpenScript"
+			tooltip="Open USE script"
+			menu="Neo4USE"
+			menuitem="Open USE script"
+			toolbaritem="Open USE script"
+			id="org.uet.neo4use.actions.ActionOpenScript" 
+			icon="resources/ic_open_script.png">
+		</action>
 </plugin>
