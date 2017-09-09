@@ -2,12 +2,21 @@
 <?use version="4.2.0"?>
 <plugin name="Neo4USE" version="0.1">
 	<action label="Open USE script"
-			class="org.uet.neo4use.actions.ActionOpenScript"
-			tooltip="Open USE script"
-			menu="Neo4USE"
-			menuitem="Open USE script"
-			toolbaritem="Open USE script"
-			id="org.uet.neo4use.actions.ActionOpenScript" 
-			icon="resources/ic_open_script.png">
-		</action>
+		class="org.uet.neo4use.actions.ActionOpenScript"
+		tooltip="Open USE script"
+		menu="Neo4USE"
+		menuitem="Open USE script"
+		toolbaritem="Open USE script"
+		id="org.uet.neo4use.actions.ActionOpenScript" 
+		icon="resources/ic_open_script.png">
+	</action>
+	<action label="Export to Neo4J database"
+		class="org.uet.neo4use.actions.ActionExport"
+		tooltip="Export to Neo4J database"
+		menu="Neo4USE"
+		menuitem="Export to Neo4J database"
+		toolbaritem="Export to Neo4J database"
+		id="org.uet.neo4use.actions.ActionExport" 
+		icon="resources/ic_export.png">
+	</action>
 </plugin>

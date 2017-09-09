@@ -13,5 +13,7 @@ public class Neo4USEPlugin implements IPlugin{
 	@Override
 	public void run(IPluginRuntime pluginRuntime) throws Exception {		
 	}
-
+	
+	public static void main(String[] args) {
+	}
 }
