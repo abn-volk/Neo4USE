@@ -33,7 +33,7 @@ public class ActionExport implements IPluginActionDelegate{
 
 	@Override
 	public void performAction(IPluginAction pluginAction) {
-		graphDb = new GraphDatabaseFactory().newEmbeddedDatabase(new File("my_graph.db"));
+		graphDb = new GraphDatabaseFactory().newEmbeddedDatabase(new File("databases/my_graph.db"));
 		fSystemApi = UseSystemApi.create(pluginAction.getSession());
 		fSystemState = fSystemApi.getSystem().state();
 		fLogWriter = pluginAction.getParent().logWriter();
@@ -55,6 +55,7 @@ public class ActionExport implements IPluginActionDelegate{
 	}
 	
 	private void setObjectAttribute(Node node, MObject obj, MAttribute attr, Value val) {
+		node.setProperty("use_node_name", obj.name());
 		Type type = val.type();
 		if (!type.isVoidOrElementTypeIsVoid() && val.isDefined()) {
 			if (type.isKindOfInteger(VoidHandling.EXCLUDE_VOID)) {
