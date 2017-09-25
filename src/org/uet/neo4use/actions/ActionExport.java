@@ -99,7 +99,7 @@ public class ActionExport implements IPluginActionDelegate{
 						dous.add(((RealValue) v).value());
 					}
 					
-					Double[] x = new Double[dous.size()];
+					double[] x = new double[dous.size()];
 					for (int i=0; i<dous.size(); i++) {
 						x[i] = dous.get(i);
 					}
