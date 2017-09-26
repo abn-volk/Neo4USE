@@ -3,15 +3,17 @@ package org.uet.neo4use.actions;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.IntToDoubleFunction;
 
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.PropertyContainer;
+import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.api.UseSystemApi;
@@ -27,6 +29,7 @@ import org.tzi.use.uml.ocl.value.IntegerValue;
 import org.tzi.use.uml.ocl.value.RealValue;
 import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
+import org.tzi.use.uml.sys.MLink;
 import org.tzi.use.uml.sys.MObject;
 import org.tzi.use.uml.sys.MSystemState;
 
@@ -45,6 +48,8 @@ public class ActionExport implements IPluginActionDelegate{
 		fLogWriter = pluginAction.getParent().logWriter();
 		Set<MObject> objects = fSystemState.allObjects();
 		objects.forEach(obj -> createObject(obj));
+		Set<MLink> links = fSystemState.allLinks();
+		links.forEach(lnk -> createLink(lnk));
 		fLogWriter.println("Neo4J export complete.");
 		graphDb.shutdown();
 	}
@@ -55,13 +60,43 @@ public class ActionExport implements IPluginActionDelegate{
 			Node node = graphDb.createNode();
 			node.addLabel(Label.label(obj.cls().name()));
 			Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
-			avMap.forEach((a,v) -> setObjectAttribute(node, obj, a, v));
+			node.setProperty("__name", obj.name());
+			avMap.forEach((a,v) -> setProperty(node, a, v));
 			tx.success();
 		}
 	}
 	
-	private void setObjectAttribute(Node node, MObject obj, MAttribute attr, Value val) {
-		node.setProperty("use_node_name", obj.name());
+	private void createLink(MLink lnk) {
+		String assocName = lnk.association().name();
+		List<MObject> linkedObjs = lnk.linkedObjects();
+		MObject obj1 = null;
+		MObject obj2 = null;
+		if (linkedObjs.size() == 2) {
+			obj1 = linkedObjs.get(0);
+			obj2 = linkedObjs.get(1);
+		}
+		else if (linkedObjs.size() == 1) {
+			obj1 = obj2 = linkedObjs.get(0);
+		}
+		else {
+			fLogWriter.println("Error when creating link: Links must have one or two ends!");
+			return;
+		}
+		try (Transaction tx = graphDb.beginTx()) {
+			Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
+			Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
+			fLogWriter.println("Creating relationship between " + obj1.name() + " and " + obj2.name());
+			RelationshipType relaType = RelationshipType.withName(assocName);
+			node1.createRelationshipTo(node2, relaType);
+			tx.success();
+		}
+		catch (MultipleFoundException e) {
+			fLogWriter.println("Error when creating link: More than one object found for " + obj1.name() + " or " + obj2.name());
+			return;
+		}
+	}
+	
+	private void setProperty(PropertyContainer node, MAttribute attr, Value val) {
 		Type type = val.type();
 		if (!type.isVoidOrElementTypeIsVoid() && val.isDefined()) {
 			if (type.isKindOfInteger(VoidHandling.EXCLUDE_VOID)) {
@@ -115,7 +150,6 @@ public class ActionExport implements IPluginActionDelegate{
 					node.setProperty(attr.name(), strArray);
 				}
 			}
-			
 		}
 	}
 
