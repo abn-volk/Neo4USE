@@ -132,7 +132,6 @@ public class ActionExport implements IPluginActionDelegate{
 					for (Value v : values) {
 						dous.add(((RealValue) v).value());
 					}
-					
 					double[] x = new double[dous.size()];
 					for (int i=0; i<dous.size(); i++) {
 						x[i] = dous.get(i);
@@ -147,6 +146,17 @@ public class ActionExport implements IPluginActionDelegate{
 					String[] strArray = new String[strs.size()];
 					strs.toArray(strArray);
 					node.setProperty(attr.name(), strArray);
+				}
+				else if (elemType.isKindOfBoolean(VoidHandling.EXCLUDE_VOID)){
+					ArrayList<Boolean> bools = new ArrayList<>();
+					for (Value v: values) {
+						bools.add(((BooleanValue) v).value());
+					}
+					boolean[] boolArray = new boolean[bools.size()];
+					for (int i=0; i<bools.size(); i++) {
+						boolArray[i] = bools.get(i);
+					}
+					node.setProperty(attr.name(), boolArray);
 				}
 			}
 		}
