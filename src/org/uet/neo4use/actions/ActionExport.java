@@ -85,7 +85,6 @@ public class ActionExport implements IPluginActionDelegate{
 		try (Transaction tx = graphDb.beginTx()) {
 			Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
 			Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
-			fLogWriter.println("Creating relationship between " + obj1.name() + " and " + obj2.name());
 			RelationshipType relaType = RelationshipType.withName(assocName);
 			node1.createRelationshipTo(node2, relaType);
 			tx.success();
