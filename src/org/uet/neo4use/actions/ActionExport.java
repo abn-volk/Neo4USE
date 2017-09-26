@@ -13,6 +13,7 @@ import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.PropertyContainer;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -47,9 +48,17 @@ public class ActionExport implements IPluginActionDelegate{
 		fSystemState = fSystemApi.getSystem().state();
 		fLogWriter = pluginAction.getParent().logWriter();
 		Set<MObject> objects = fSystemState.allObjects();
-		objects.forEach(obj -> createObject(obj));
+		objects.forEach(obj -> {
+			if (!obj.cls().isKindOfAssociation(VoidHandling.EXCLUDE_VOID))
+				createObject(obj);
+		});
 		Set<MLink> links = fSystemState.allLinks();
-		links.forEach(lnk -> createLink(lnk));
+		links.forEach(lnk -> {
+			if (lnk.association().isKindOfClass(VoidHandling.EXCLUDE_VOID))
+				createLinkObject(lnk);
+			else 
+				createLink(lnk);
+		});
 		fLogWriter.println("Neo4J export complete.");
 		graphDb.shutdown();
 	}
@@ -91,6 +100,39 @@ public class ActionExport implements IPluginActionDelegate{
 		}
 		catch (MultipleFoundException e) {
 			fLogWriter.println("Error when creating link: More than one object found for " + obj1.name() + " or " + obj2.name());
+			return;
+		}
+	}
+	
+	private void createLinkObject(MLink lnk) {
+		MObject obj = (MObject) lnk;
+		String assocName = lnk.association().name();
+		List<MObject> linkedObjs = lnk.linkedObjects();
+		MObject obj1 = null;
+		MObject obj2 = null;
+		if (linkedObjs.size() == 2) {
+			obj1 = linkedObjs.get(0);
+			obj2 = linkedObjs.get(1);
+		}
+		else if (linkedObjs.size() == 1) {
+			obj1 = obj2 = linkedObjs.get(0);
+		}
+		else {
+			fLogWriter.println("Error when creating link object: Links must have one or two ends!");
+			return;
+		}
+		try (Transaction tx = graphDb.beginTx()) {
+			Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
+			Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
+			RelationshipType relaType = RelationshipType.withName(assocName);
+			Relationship rela = node1.createRelationshipTo(node2, relaType);
+			rela.setProperty("__name", obj.name());
+			Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
+			avMap.forEach((a,v) -> setProperty(rela, a, v));
+			tx.success();
+		}
+		catch (MultipleFoundException e) {
+			fLogWriter.println("Error when creating link object: More than one object found for " + obj1.name() + " or " + obj2.name());
 			return;
 		}
 	}
