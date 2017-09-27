@@ -19,4 +19,13 @@
 		id="org.uet.neo4use.actions.ActionExport" 
 		icon="resources/ic_export.png">
 	</action>
+	<action label="Import to Neo4J database"
+		class="org.uet.neo4use.actions.ActionImport"
+		tooltip="Import to Neo4J database"
+		menu="Neo4USE"
+		menuitem="Import to Neo4J database"
+		toolbaritem="Import to Neo4J database"
+		id="org.uet.neo4use.actions.ActionImport"
+		icon="resources/ic_import.png">
+	</action>
 </plugin>
