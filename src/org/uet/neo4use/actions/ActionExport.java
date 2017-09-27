@@ -3,6 +3,8 @@ package org.uet.neo4use.actions;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -11,7 +13,11 @@ import java.util.function.IntToDoubleFunction;
 
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.PropertyContainer;
+import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.api.UseSystemApi;
@@ -27,6 +33,7 @@ import org.tzi.use.uml.ocl.value.IntegerValue;
 import org.tzi.use.uml.ocl.value.RealValue;
 import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
+import org.tzi.use.uml.sys.MLink;
 import org.tzi.use.uml.sys.MObject;
 import org.tzi.use.uml.sys.MSystemState;
 
@@ -44,7 +51,17 @@ public class ActionExport implements IPluginActionDelegate{
 		fSystemState = fSystemApi.getSystem().state();
 		fLogWriter = pluginAction.getParent().logWriter();
 		Set<MObject> objects = fSystemState.allObjects();
-		objects.forEach(obj -> createObject(obj));
+		objects.forEach(obj -> {
+			if (!obj.cls().isKindOfAssociation(VoidHandling.EXCLUDE_VOID))
+				createObject(obj);
+		});
+		Set<MLink> links = fSystemState.allLinks();
+		links.forEach(lnk -> {
+			if (lnk.association().isKindOfClass(VoidHandling.EXCLUDE_VOID))
+				createLinkObject(lnk);
+			else 
+				createLink(lnk);
+		});
 		fLogWriter.println("Neo4J export complete.");
 		graphDb.shutdown();
 	}
@@ -55,13 +72,75 @@ public class ActionExport implements IPluginActionDelegate{
 			Node node = graphDb.createNode();
 			node.addLabel(Label.label(obj.cls().name()));
 			Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
-			avMap.forEach((a,v) -> setObjectAttribute(node, obj, a, v));
+			node.setProperty("__name", obj.name());
+			avMap.forEach((a,v) -> setProperty(node, a, v));
 			tx.success();
 		}
 	}
 	
-	private void setObjectAttribute(Node node, MObject obj, MAttribute attr, Value val) {
-		node.setProperty("use_node_name", obj.name());
+	private void createLink(MLink lnk) {
+		String assocName = lnk.association().name();
+		List<MObject> linkedObjs = lnk.linkedObjects();
+		MObject obj1 = null;
+		MObject obj2 = null;
+		if (linkedObjs.size() == 2) {
+			obj1 = linkedObjs.get(0);
+			obj2 = linkedObjs.get(1);
+		}
+		else if (linkedObjs.size() == 1) {
+			obj1 = obj2 = linkedObjs.get(0);
+		}
+		else {
+			fLogWriter.println("Error when creating link: Links must have one or two ends!");
+			return;
+		}
+		try (Transaction tx = graphDb.beginTx()) {
+			Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
+			Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
+			RelationshipType relaType = RelationshipType.withName(assocName);
+			node1.createRelationshipTo(node2, relaType);
+			tx.success();
+		}
+		catch (MultipleFoundException e) {
+			fLogWriter.println("Error when creating link: More than one object found for " + obj1.name() + " or " + obj2.name());
+			return;
+		}
+	}
+	
+	private void createLinkObject(MLink lnk) {
+		MObject obj = (MObject) lnk;
+		String assocName = lnk.association().name();
+		List<MObject> linkedObjs = lnk.linkedObjects();
+		MObject obj1 = null;
+		MObject obj2 = null;
+		if (linkedObjs.size() == 2) {
+			obj1 = linkedObjs.get(0);
+			obj2 = linkedObjs.get(1);
+		}
+		else if (linkedObjs.size() == 1) {
+			obj1 = obj2 = linkedObjs.get(0);
+		}
+		else {
+			fLogWriter.println("Error when creating link object: Links must have one or two ends!");
+			return;
+		}
+		try (Transaction tx = graphDb.beginTx()) {
+			Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
+			Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
+			RelationshipType relaType = RelationshipType.withName(assocName);
+			Relationship rela = node1.createRelationshipTo(node2, relaType);
+			rela.setProperty("__name", obj.name());
+			Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
+			avMap.forEach((a,v) -> setProperty(rela, a, v));
+			tx.success();
+		}
+		catch (MultipleFoundException e) {
+			fLogWriter.println("Error when creating link object: More than one object found for " + obj1.name() + " or " + obj2.name());
+			return;
+		}
+	}
+	
+	private void setProperty(PropertyContainer node, MAttribute attr, Value val) {
 		Type type = val.type();
 		if (!type.isVoidOrElementTypeIsVoid() && val.isDefined()) {
 			if (type.isKindOfInteger(VoidHandling.EXCLUDE_VOID)) {
@@ -98,8 +177,7 @@ public class ActionExport implements IPluginActionDelegate{
 					for (Value v : values) {
 						dous.add(((RealValue) v).value());
 					}
-					
-					Double[] x = new Double[dous.size()];
+					double[] x = new double[dous.size()];
 					for (int i=0; i<dous.size(); i++) {
 						x[i] = dous.get(i);
 					}
@@ -114,8 +192,18 @@ public class ActionExport implements IPluginActionDelegate{
 					strs.toArray(strArray);
 					node.setProperty(attr.name(), strArray);
 				}
+				else if (elemType.isKindOfBoolean(VoidHandling.EXCLUDE_VOID)){
+					ArrayList<Boolean> bools = new ArrayList<>();
+					for (Value v: values) {
+						bools.add(((BooleanValue) v).value());
+					}
+					boolean[] boolArray = new boolean[bools.size()];
+					for (int i=0; i<bools.size(); i++) {
+						boolArray[i] = bools.get(i);
+					}
+					node.setProperty(attr.name(), boolArray);
+				}
 			}
-			
 		}
 	}
 
