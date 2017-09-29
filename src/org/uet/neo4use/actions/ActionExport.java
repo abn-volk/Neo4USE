@@ -31,7 +31,7 @@ public class ActionExport implements IPluginActionDelegate {
 		JFileChooser fChooser = new JFileChooser(path);
 		fChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 		fChooser.setCurrentDirectory(new File("."));
-		fChooser.setDialogTitle("Select folder");
+		fChooser.setDialogTitle("Select folder to export to");
 		int returnVal = fChooser.showOpenDialog(fMainWindow);
 		if (returnVal != JFileChooser.APPROVE_OPTION) {
 			return;
