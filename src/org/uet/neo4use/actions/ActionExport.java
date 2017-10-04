@@ -20,6 +20,7 @@ import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.RelationshipType;
+import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.api.UseSystemApi;
@@ -35,6 +36,7 @@ import org.tzi.use.uml.ocl.value.BooleanValue;
 import org.tzi.use.uml.ocl.value.CollectionValue;
 import org.tzi.use.uml.ocl.value.EnumValue;
 import org.tzi.use.uml.ocl.value.IntegerValue;
+import org.tzi.use.uml.ocl.value.ObjectValue;
 import org.tzi.use.uml.ocl.value.RealValue;
 import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
@@ -105,7 +107,7 @@ public class ActionExport implements IPluginActionDelegate {
 			Set<MObject> objects = fSystemState.allObjects();
 			objects.forEach(obj -> {
 				if (!obj.cls().isKindOfAssociation(VoidHandling.EXCLUDE_VOID))
-					createObject(obj);
+					createObjectIfNotExists(obj);
 			});
 			Set<MLink> links = fSystemState.allLinks();
 			for (MLink lnk: links) {
@@ -145,7 +147,16 @@ public class ActionExport implements IPluginActionDelegate {
 			}
 		}
 		
-		private void createObject(MObject obj) {
+		private Node createObjectIfNotExists(MObject obj) {
+			String name = obj.name();
+			Label label = Label.label(obj.cls().name());
+			try (Transaction tx = graphDb.beginTx()) {
+			ResourceIterator<Node> nodes = graphDb.findNodes(label, "__name", name);
+				if (nodes.hasNext()) {
+					tx.success();
+					return nodes.next();
+				}
+			}
 			try (Transaction tx = graphDb.beginTx()) {
 				fLogWriter.println(String.format("Creating object %s...", obj.name()));
 				Node node = graphDb.createNode();
@@ -154,6 +165,7 @@ public class ActionExport implements IPluginActionDelegate {
 				node.setProperty("__name", obj.name());
 				avMap.forEach((a,v) -> setProperty(node, a, v));
 				tx.success();
+				return node;
 			}
 		}
 		
@@ -203,21 +215,22 @@ public class ActionExport implements IPluginActionDelegate {
 		
 		private void setProperty(Node node, MAttribute attr, Value val) {
 			Type type = val.type();
+			String attrName = attr.name();
 			if (!type.isVoidOrElementTypeIsVoid() && val.isDefined()) {
 				if (type.isKindOfInteger(VoidHandling.EXCLUDE_VOID)) {
-					node.setProperty(attr.name(), ((IntegerValue) val).value());
+					node.setProperty(attrName, ((IntegerValue) val).value());
 				}
 				else if (type.isKindOfReal(VoidHandling.EXCLUDE_VOID)) {
-					node.setProperty(attr.name(), ((RealValue) val).value());
+					node.setProperty(attrName, ((RealValue) val).value());
 				}
 				else if (type.isKindOfString(VoidHandling.EXCLUDE_VOID)) {
-					node.setProperty(attr.name(), ((StringValue) val).value());
+					node.setProperty(attrName, ((StringValue) val).value());
 				}
 				else if (type.isKindOfBoolean(VoidHandling.EXCLUDE_VOID)) {
-					node.setProperty(attr.name(), ((BooleanValue) val).value());
+					node.setProperty(attrName, ((BooleanValue) val).value());
 				}
 				else if (type.isKindOfEnum(VoidHandling.EXCLUDE_VOID)) {
-					node.setProperty(attr.name(), ((EnumValue) val).value());
+					node.setProperty(attrName, ((EnumValue) val).value());
 				}
 				else if (type.isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
 					CollectionType cType = (CollectionType) type;
@@ -234,7 +247,7 @@ public class ActionExport implements IPluginActionDelegate {
 						for (int i=0; i<ints.size(); i++) {
 							x[i] = ints.get(i);
 						}
-						node.setProperty(attr.name(), x);
+						node.setProperty(attrName, x);
 					}
 					else if (elemType.isKindOfReal(VoidHandling.EXCLUDE_VOID)){
 						ArrayList<Double> dous = new ArrayList<Double>();
@@ -245,7 +258,7 @@ public class ActionExport implements IPluginActionDelegate {
 						for (int i=0; i<dous.size(); i++) {
 							x[i] = dous.get(i);
 						}
-						node.setProperty(attr.name(), x);
+						node.setProperty(attrName, x);
 					}
 					else if (elemType.isKindOfString(VoidHandling.EXCLUDE_VOID)){
 						ArrayList<String> strs = new ArrayList<>();
@@ -254,7 +267,7 @@ public class ActionExport implements IPluginActionDelegate {
 						}
 						String[] strArray = new String[strs.size()];
 						strs.toArray(strArray);
-						node.setProperty(attr.name(), strArray);
+						node.setProperty(attrName, strArray);
 					}
 					else if (elemType.isKindOfEnum(VoidHandling.EXCLUDE_VOID)){
 						ArrayList<String> strs = new ArrayList<>();
@@ -263,7 +276,7 @@ public class ActionExport implements IPluginActionDelegate {
 						}
 						String[] strArray = new String[strs.size()];
 						strs.toArray(strArray);
-						node.setProperty(attr.name(), strArray);
+						node.setProperty(attrName, strArray);
 					}
 					else if (elemType.isKindOfBoolean(VoidHandling.EXCLUDE_VOID)){
 						ArrayList<Boolean> bools = new ArrayList<>();
@@ -274,7 +287,15 @@ public class ActionExport implements IPluginActionDelegate {
 						for (int i=0; i<bools.size(); i++) {
 							boolArray[i] = bools.get(i);
 						}
-						node.setProperty(attr.name(), boolArray);
+						node.setProperty(attrName, boolArray);
+					}
+				}
+				else if (type.isKindOfClass(VoidHandling.EXCLUDE_VOID)) {
+					ObjectValue v = (ObjectValue) val;
+					Node newObj = createObjectIfNotExists(v.value());
+					try (Transaction tx = graphDb.beginTx();) {
+						node.createRelationshipTo(newObj, RelationshipType.withName(attrName));
+						tx.success();
 					}
 				}
 			}
