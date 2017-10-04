@@ -19,6 +19,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.Transaction;
@@ -151,11 +152,12 @@ public class ActionExport implements IPluginActionDelegate {
 			String name = obj.name();
 			Label label = Label.label(obj.cls().name());
 			try (Transaction tx = graphDb.beginTx()) {
-			ResourceIterator<Node> nodes = graphDb.findNodes(label, "__name", name);
+				ResourceIterator<Node> nodes = graphDb.findNodes(label, "__name", name);
 				if (nodes.hasNext()) {
 					tx.success();
 					return nodes.next();
 				}
+				else tx.success();
 			}
 			try (Transaction tx = graphDb.beginTx()) {
 				fLogWriter.println(String.format("Creating object %s...", obj.name()));
@@ -194,7 +196,7 @@ public class ActionExport implements IPluginActionDelegate {
 			String assocName = lnk.association().name();
 			fLogWriter.println(String.format("Creating link object: %s:%s", lnk.name(), lnk.association().name()));			
 			try (Transaction tx = graphDb.beginTx()) {
-				Node linkNode = graphDb.createNode(Label.label("__Link"), Label.label(assocName));
+				Node linkNode = graphDb.createNode(Label.label("__LinkObject"), Label.label(assocName));
 				Set<MLinkEnd> ends = lnk.linkEnds();
 				for (MLinkEnd e : ends) {
 					MObject obj = e.object();
@@ -289,11 +291,25 @@ public class ActionExport implements IPluginActionDelegate {
 						}
 						node.setProperty(attrName, boolArray);
 					}
+					else if (elemType.isKindOfClass(VoidHandling.EXCLUDE_VOID)) {
+						int i = 0;
+						for (Value v : values) {
+							MObject obj = ((ObjectValue) v).value();
+							Node newObj = createObjectIfNotExists(obj);
+							try (Transaction tx = graphDb.beginTx()) {
+								Relationship rela = node.createRelationshipTo(newObj, 
+										RelationshipType.withName(attrName));
+								rela.setProperty("__index", i);
+								i++;
+								tx.success();
+							}
+						}
+					}
 				}
 				else if (type.isKindOfClass(VoidHandling.EXCLUDE_VOID)) {
 					ObjectValue v = (ObjectValue) val;
 					Node newObj = createObjectIfNotExists(v.value());
-					try (Transaction tx = graphDb.beginTx();) {
+					try (Transaction tx = graphDb.beginTx()) {
 						node.createRelationshipTo(newObj, RelationshipType.withName(attrName));
 						tx.success();
 					}
