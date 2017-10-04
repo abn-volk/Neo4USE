@@ -33,6 +33,7 @@ import org.tzi.use.uml.ocl.type.Type;
 import org.tzi.use.uml.ocl.type.Type.VoidHandling;
 import org.tzi.use.uml.ocl.value.BooleanValue;
 import org.tzi.use.uml.ocl.value.CollectionValue;
+import org.tzi.use.uml.ocl.value.EnumValue;
 import org.tzi.use.uml.ocl.value.IntegerValue;
 import org.tzi.use.uml.ocl.value.RealValue;
 import org.tzi.use.uml.ocl.value.StringValue;
@@ -215,6 +216,9 @@ public class ActionExport implements IPluginActionDelegate {
 				else if (type.isKindOfBoolean(VoidHandling.EXCLUDE_VOID)) {
 					node.setProperty(attr.name(), ((BooleanValue) val).value());
 				}
+				else if (type.isKindOfEnum(VoidHandling.EXCLUDE_VOID)) {
+					node.setProperty(attr.name(), ((EnumValue) val).value());
+				}
 				else if (type.isKindOfCollection(VoidHandling.EXCLUDE_VOID)) {
 					CollectionType cType = (CollectionType) type;
 					Type elemType = cType.elemType();
@@ -247,6 +251,15 @@ public class ActionExport implements IPluginActionDelegate {
 						ArrayList<String> strs = new ArrayList<>();
 						for (Value v: values) {
 							strs.add(((StringValue) v).value());
+						}
+						String[] strArray = new String[strs.size()];
+						strs.toArray(strArray);
+						node.setProperty(attr.name(), strArray);
+					}
+					else if (elemType.isKindOfEnum(VoidHandling.EXCLUDE_VOID)){
+						ArrayList<String> strs = new ArrayList<>();
+						for (Value v: values) {
+							strs.add(((EnumValue) v).value());
 						}
 						String[] strArray = new String[strs.size()];
 						strs.toArray(strArray);
