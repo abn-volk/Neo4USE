@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -20,8 +19,6 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.PropertyContainer;
-import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -42,6 +39,7 @@ import org.tzi.use.uml.ocl.value.StringValue;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MLink;
 import org.tzi.use.uml.sys.MLinkEnd;
+import org.tzi.use.uml.sys.MLinkObject;
 import org.tzi.use.uml.sys.MObject;
 import org.tzi.use.uml.sys.MSystemState;
 
@@ -110,14 +108,14 @@ public class ActionExport implements IPluginActionDelegate {
 			});
 			Set<MLink> links = fSystemState.allLinks();
 			for (MLink lnk: links) {
-//				if (!lnk.association().isKindOfClass(VoidHandling.EXCLUDE_VOID)) {
-//					if (!createLinkObject(lnk)) 
-//						return false;
-//				}
-//				else { 
+				if (lnk.association().isKindOfClass(VoidHandling.EXCLUDE_VOID)) {
+					if (!createLinkObject((MLinkObject) lnk)) 
+						return false;
+				}
+				else { 
 					if (!createLink(lnk))
 						return false;
-//				}
+				}
 			}
 			return true;
 		}
@@ -179,40 +177,30 @@ public class ActionExport implements IPluginActionDelegate {
 			}
 		}
 		
-		private boolean createLinkObject(MLink lnk) {
-			MObject obj = (MObject) lnk;
+		private boolean createLinkObject(MLinkObject lnk) {
 			String assocName = lnk.association().name();
-			List<MObject> linkedObjs = lnk.linkedObjects();
-			MObject obj1 = null;
-			MObject obj2 = null;
-			if (linkedObjs.size() == 2) {
-				obj1 = linkedObjs.get(0);
-				obj2 = linkedObjs.get(1);
-			}
-			else if (linkedObjs.size() == 1) {
-				obj1 = obj2 = linkedObjs.get(0);
-			}
-			else {
-				fLogWriter.println("Error when creating link object: Links must have one or two ends!");
-				return false;
-			}
+			fLogWriter.println(String.format("Creating link object: %s:%s", lnk.name(), lnk.association().name()));			
 			try (Transaction tx = graphDb.beginTx()) {
-				Node node1 = graphDb.findNode(Label.label(obj1.cls().name()), "__name", obj1.name());
-				Node node2 = graphDb.findNode(Label.label(obj2.cls().name()), "__name", obj2.name());
-				RelationshipType relaType = RelationshipType.withName(assocName);
-				Relationship rela = node1.createRelationshipTo(node2, relaType);
-				rela.setProperty("__name", obj.name());
-				Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
-				avMap.forEach((a,v) -> setProperty(rela, a, v));
+				Node linkNode = graphDb.createNode(Label.label("__Link"), Label.label(assocName));
+				Set<MLinkEnd> ends = lnk.linkEnds();
+				for (MLinkEnd e : ends) {
+					MObject obj = e.object();
+					String rolename = e.associationEnd().nameAsRolename();
+					Node objNode = graphDb.findNode(Label.label(obj.cls().name()), "__name", obj.name());
+					linkNode.createRelationshipTo(objNode, RelationshipType.withName(rolename));
+				}
+				Map<MAttribute,Value> avMap = lnk.state(fSystemState).attributeValueMap();
+				avMap.forEach((a,v) -> setProperty(linkNode, a, v));
 				tx.success();
 				return true;
 			}
 			catch (MultipleFoundException e) {
+				fLogWriter.println("Error when creating link: Multiple node found for an object.");
 				return false;
 			}
 		}
 		
-		private void setProperty(PropertyContainer node, MAttribute attr, Value val) {
+		private void setProperty(Node node, MAttribute attr, Value val) {
 			Type type = val.type();
 			if (!type.isVoidOrElementTypeIsVoid() && val.isDefined()) {
 				if (type.isKindOfInteger(VoidHandling.EXCLUDE_VOID)) {
