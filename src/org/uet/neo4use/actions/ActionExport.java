@@ -161,8 +161,7 @@ public class ActionExport implements IPluginActionDelegate {
 			}
 			try (Transaction tx = graphDb.beginTx()) {
 				fLogWriter.println(String.format("Creating object %s...", obj.name()));
-				Node node = graphDb.createNode();
-				node.addLabel(Label.label(obj.cls().name()));
+				Node node = graphDb.createNode(label, Label.label("__Object"));
 				Map<MAttribute,Value> avMap = obj.state(fSystemState).attributeValueMap();
 				node.setProperty("__name", obj.name());
 				avMap.forEach((a,v) -> setProperty(node, a, v));
