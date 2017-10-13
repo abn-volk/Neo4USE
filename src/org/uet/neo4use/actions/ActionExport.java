@@ -196,6 +196,7 @@ public class ActionExport implements IPluginActionDelegate {
 			fLogWriter.println(String.format("Creating link object: %s:%s", lnk.name(), lnk.association().name()));			
 			try (Transaction tx = graphDb.beginTx()) {
 				Node linkNode = graphDb.createNode(Label.label("__LinkObject"), Label.label(assocName));
+				linkNode.setProperty("__name", lnk.name());
 				Set<MLinkEnd> ends = lnk.linkEnds();
 				for (MLinkEnd e : ends) {
 					MObject obj = e.object();
