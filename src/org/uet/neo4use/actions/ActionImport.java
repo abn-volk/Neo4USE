@@ -3,8 +3,9 @@ package org.uet.neo4use.actions;
 import java.awt.EventQueue;
 import java.io.File;
 import java.io.PrintWriter;
-import java.util.Map;
+import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -16,6 +17,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.ResourceIterator;
+import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.api.UseApiException;
 import org.tzi.use.api.UseSystemApi;
@@ -23,6 +25,10 @@ import org.tzi.use.config.Options;
 import org.tzi.use.gui.main.MainWindow;
 import org.tzi.use.runtime.gui.IPluginAction;
 import org.tzi.use.runtime.gui.IPluginActionDelegate;
+import org.tzi.use.uml.ocl.type.CollectionType;
+import org.tzi.use.uml.ocl.type.Type;
+import org.tzi.use.uml.ocl.type.Type.VoidHandling;
+import org.tzi.use.uml.ocl.value.IntegerValue;
 import org.tzi.use.uml.sys.MObject;
 
 public class ActionImport implements IPluginActionDelegate {
@@ -55,7 +61,7 @@ public class ActionImport implements IPluginActionDelegate {
 		String message = String.format("Importing model from %s. Please wait.", selectedFile.getPath());
 		JOptionPane pane = new JOptionPane(message, JOptionPane.WARNING_MESSAGE, 
 				JOptionPane.DEFAULT_OPTION, null, new Object[]{}, null);
-		JDialog dialog = pane.createDialog("Exporting...");
+		JDialog dialog = pane.createDialog("Importing...");
 		dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		new ImportTask(selectedFile, dialog).execute();
 	}
@@ -80,8 +86,8 @@ public class ActionImport implements IPluginActionDelegate {
 				}
 			});
 			graphDb = new GraphDatabaseFactory().newEmbeddedDatabase(file);
-			
-			return null;
+			boolean res = importObjects(graphDb);
+			return res;
 		}
 		
 		@Override
@@ -109,47 +115,104 @@ public class ActionImport implements IPluginActionDelegate {
 		}
 		
 		private boolean importObjects(GraphDatabaseService graphDb) {
-			ResourceIterator<Node> objNodes = graphDb.findNodes(Label.label("__Object"));
-			while (objNodes.hasNext()) {
-				Node node = objNodes.next();
-				String cls = getOriginalClass(node, "__Object");
-				if (cls == null) {
-					fLogWriter.println(String.format("Error: Node with id %ld does not have a valid label representing its class", node.getId()));
-					return false;
-				}
-				Object useName = node.getProperty("__name", null);
-				if (useName == null) {
-					fLogWriter.println(String.format("Error: Node with id %ld does not have the __name attribute.", node.getId()));
-					return false;
-				}
-				if (!(useName instanceof String)) {
-					fLogWriter.println(String.format("Error: The __name attribute of the node with id %ld is supposed to be a string!", node.getId()));
-					return false;
-				}
-				String name = (String) useName;
-				try {
-					MObject obj = fSystemApi.createObject(cls, name);
-					Map<String, Object> props = node.getProperties();
-					for (Map.Entry<String, Object> prop : props.entrySet()) {
-						if (!prop.getKey().equals("__name")) {
-							if (!importAttribute(obj, prop.getKey(), prop.getValue()))
-								return false;
+			try (Transaction tx = graphDb.beginTx()) {
+				ResourceIterator<Node> objNodes = graphDb.findNodes(Label.label("__Object"));
+				while (objNodes.hasNext()) {
+					Node node = objNodes.next();
+					String cls = getOriginalClass(node, "__Object");
+					if (cls == null) {
+						fLogWriter.println(String.format("Error: Node with id %ld does not have a valid label representing its class", node.getId()));
+						return false;
+					}
+					Object useName = node.getProperty("__name", null);
+					if (useName == null) {
+						fLogWriter.println(String.format("Error: Node with id %ld does not have the __name attribute.", node.getId()));
+						return false;
+					}
+					if (!(useName instanceof String)) {
+						fLogWriter.println(String.format("Error: The __name attribute of the node with id %ld is supposed to be a string!", node.getId()));
+						return false;
+					}
+					String name = (String) useName;
+					fLogWriter.println(String.format("Importing %s", name));
+					try {
+						MObject obj = fSystemApi.createObject(cls, name);
+						for (String key : node.getPropertyKeys()) {
+							fLogWriter.println(key);
+							if (!key.equals("__name")) {
+								boolean res = importAttribute(obj, key, node.getProperty(key));
+								if (!res) return false;
+							}
 						}
 					}
-					return true;
+					catch (UseApiException e) {
+						return false;
+					}
 				}
-				catch (UseApiException e) {
-					return false;
-				}
+				tx.success();
 			}
-			
 			return true;
 		}
 		
 		private boolean importAttribute(MObject obj, String name, Object value) {
+			String objName = obj.name();
+			fLogWriter.println(String.format("Importing %s: %s...", objName, name));
+			try {
+				if (value instanceof Integer || value instanceof Double || value instanceof Boolean) {
+					fSystemApi.setAttributeValue(objName, name, value.toString());
+				}
+				else if (value instanceof String) {
+					Type t = obj.cls().attribute(name, true).type();
+					// Value is actually an enum
+					if (t.isKindOfEnum(VoidHandling.EXCLUDE_VOID))
+						fSystemApi.setAttributeValue(objName, name, String.format("#%s", ((String) value)));
+					// Value is a string
+					else 
+						fSystemApi.setAttributeValue(objName, name, String.format("'%s'", ((String) value)));
+				}
+				else if (value instanceof int[]) {
+					String body = Arrays.stream((int[]) value).mapToObj(i -> Integer.toString(i)).collect(Collectors.joining(","));
+					fSystemApi.setAttributeValue(objName, name, String.format("%s{%s}", getCollectionType(obj, name), body));
+				}
+				else if (value instanceof double[]) {
+					String body = Arrays.stream((double[]) value).mapToObj(d -> Double.toString(d)).collect(Collectors.joining(","));
+					fSystemApi.setAttributeValue(objName, name, String.format("%s{%s}", getCollectionType(obj, name), body));
+				}
+				else if (value instanceof boolean[]) {
+					String body = Arrays.stream((Boolean[]) value).map(b -> b.toString()).collect(Collectors.joining(","));
+					fSystemApi.setAttributeValue(objName, name, String.format("%s{%s}", getCollectionType(obj, name), body));
+				}
+				else if (value instanceof String[]) {
+					Type elemType = ((CollectionType) obj.cls().attribute(name, true).type()).elemType();
+					String body = "";
+					if (elemType.isKindOfEnum(VoidHandling.EXCLUDE_VOID))
+						body = Arrays.stream((String[]) value).map(s -> String.format("#%s", s)).collect(Collectors.joining(","));			
+					else
+						body = Arrays.stream((String[]) value).map(s -> String.format("'%s'", s)).collect(Collectors.joining(","));
+					fSystemApi.setAttributeValue(objName, name, String.format("%s{%s}", getCollectionType(obj, name), body));
+				}
+				else {
+					fLogWriter.println(String.format("Error when assigning %s.%s: Value must be a primitive/string or array of primitives/strings", objName, name));
+					return false;
+				}
+			}
+			catch (UseApiException e) {
+				fLogWriter.println(String.format("Error when assigning %s.%s: %s", objName, name, e.getMessage()));
+			}
 			return true;
 		}
 		
+		private String getCollectionType(MObject obj, String attrName) {
+			Type type = obj.cls().attribute(attrName, true).type();
+			if (type.isKindOfBag(VoidHandling.EXCLUDE_VOID))
+				return "Bag";
+			else if (type.isKindOfOrderedSet(VoidHandling.EXCLUDE_VOID))
+				return "OrderedSet";
+			else if (type.isKindOfSet(VoidHandling.EXCLUDE_VOID))
+				return "Set";
+			else return "Sequence";
+		}
+				
 		private String getOriginalClass(Node node, String otherLabel) {
 			for (Label l : node.getLabels()) {
 				if (!l.name().equals(otherLabel)) {
