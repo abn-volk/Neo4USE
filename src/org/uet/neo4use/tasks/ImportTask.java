@@ -42,6 +42,7 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 	
 	public ImportTask(File file, MainWindow fMainWindow, PrintWriter fLogWriter, UseSystemApi fSystemApi) {
 		this.file = file;
+		this.fMainWindow = fMainWindow;
 		this.fLogWriter = fLogWriter;
 		this.fSystemApi = fSystemApi;
 	}
