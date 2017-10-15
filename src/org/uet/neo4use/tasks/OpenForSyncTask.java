@@ -3,6 +3,8 @@ package org.uet.neo4use.tasks;
 import java.io.File;
 
 import javax.swing.SwingWorker;
+import javax.swing.event.InternalFrameEvent;
+import javax.swing.event.InternalFrameListener;
 
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -35,6 +37,31 @@ public class OpenForSyncTask extends SwingWorker<Void, Void> {
 	protected void done() {
 		super.done();
 		View listener = new ListenerDialog(graphDb, fMainWindow.logWriter(), fSystemApi);
-		fMainWindow.addNewViewFrame(new ViewFrame("Neo4j synchronisation", listener, "resources/ic_sync.png"));
+		ViewFrame vf = new ViewFrame("Neo4j synchronisation", listener, "/resources/ic_sync.png");
+		vf.addInternalFrameListener(new InternalFrameListener() {
+			@Override
+			public void internalFrameActivated(InternalFrameEvent e) {
+			}
+			@Override
+			public void internalFrameClosed(InternalFrameEvent e) {
+				listener.detachModel();
+			}
+			@Override
+			public void internalFrameClosing(InternalFrameEvent e) {
+			}
+			@Override
+			public void internalFrameDeactivated(InternalFrameEvent e) {
+			}
+			@Override
+			public void internalFrameDeiconified(InternalFrameEvent e) {
+			}
+			@Override
+			public void internalFrameIconified(InternalFrameEvent e) {
+			}
+			@Override
+			public void internalFrameOpened(InternalFrameEvent e) {
+			}
+		});
+		fMainWindow.addNewViewFrame(vf);
 	}
 }

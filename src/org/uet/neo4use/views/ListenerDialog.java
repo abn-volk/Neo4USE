@@ -11,6 +11,7 @@ import javax.swing.JPanel;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.Transaction;
 import org.tzi.use.api.UseSystemApi;
 import org.tzi.use.gui.views.View;
@@ -34,20 +35,16 @@ public class ListenerDialog extends JPanel implements View {
 	private UseSystemApi fSystemApi;
 	
 	public ListenerDialog(GraphDatabaseService graphDb, PrintWriter fLogWriter, UseSystemApi fSystemApi) {
+		super(new BorderLayout());
 		this.graphDb = graphDb;
 		this.fLogWriter = fLogWriter;
 		this.fSystemApi = fSystemApi;
+		fSystemApi.getSystem().getEventBus().register(this);
 		String msg = "Keep this dialog open to synchronise with the Neo4j database.";
 		Icon icon = new ImageIcon("resources/ic_sync.png");
 		JLabel label = new JLabel(msg, icon, JLabel.LEADING);
 		add(label, BorderLayout.CENTER);
-		fSystemApi.getSystem().getEventBus().register(this);
-	}
-
-	@Override
-	public void detachModel() {
-		graphDb.shutdown();
-		fSystemApi.getSystem().getEventBus().unregister(this);
+		setVisible(true);
 	}
 	
 	@Subscribe
@@ -68,6 +65,9 @@ public class ListenerDialog extends JPanel implements View {
 		fLogWriter.println(String.format("Sync: Object %s destroyed.", obj.name()));
 		try(Transaction tx = graphDb.beginTx()) {
 			Node node = graphDb.findNode(Label.label(obj.cls().name()), "__name", obj.name());
+			for (Relationship r : node.getRelationships()) {
+		         r.delete();
+		     }
 			node.delete();
 			tx.success();
 		}
@@ -91,5 +91,12 @@ public class ListenerDialog extends JPanel implements View {
 	public void onLinkDeleted(LinkDeletedEvent e) {
 		MLink lnk = e.getLink();
 		fLogWriter.println(String.format("Sync: Link %s deleted between %d objects.", e.getAssociation().name(), e.getAssociation().associationEnds().size()));
+	}
+
+	@Override
+	public void detachModel() {
+		fLogWriter.println("Shutting down database...");
+		fSystemApi.getSystem().getEventBus().unregister(this);
+		graphDb.shutdown();
 	}
 }
