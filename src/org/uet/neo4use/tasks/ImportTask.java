@@ -293,6 +293,7 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 			fLogWriter.println(String.format("Error: Node with id %d does not have a valid label representing its association type.", node.getId()));
 			return false;
 		}
+		fLogWriter.println(String.format("Importing link %s", label));
 		MAssociation asc = fSystemApi.getSystem().model().getAssociation(label);
 		if (asc == null) {
 			fLogWriter.println(String.format("Error: No association found for %s.", label));
@@ -322,18 +323,13 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 		try {
 			String[] connectedObjectNames = objNames.toArray(new String[objNames.size()]);
 			if (isLinkObj) {
-				Object useName = node.getProperty("__name", null);
-				if (useName == null || !(useName instanceof String)) {
-					fLogWriter.println(String.format("Error: Node with id %d must have the __name attribute with a string value!", node.getId()));
-					return false;
-				}
-				MObject obj = fSystemApi.createLinkObject(label, useName.toString(), connectedObjectNames);
+				MObject obj = fSystemApi.createLinkObject(label, fSystemApi.getSystem().getUniqueNameGenerator().generate(asc.name()), connectedObjectNames);
 				if (!importAttributes(obj, node)) return false;
 			}
 			else
 				fSystemApi.createLink(label, connectedObjectNames);
 		} catch (UseApiException e) {
-			fLogWriter.println(String.format("Error: Exception when creating link or link object: %s", e.getMessage()));
+			fLogWriter.println(String.format("Error: Exception when creating link or link object %s: %s", label, e.getMessage()));
 			return false;
 		}
 		return true;
