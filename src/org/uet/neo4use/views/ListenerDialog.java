@@ -59,8 +59,9 @@ public class ListenerDialog extends JPanel implements View {
 		this.fLogWriter = fLogWriter;
 		this.fSystemApi = fSystemApi;
 		fSystemApi.getSystem().getEventBus().register(this);
+		setLayout(new BorderLayout());
 		String msg = "Keep this dialog open to synchronise with the Neo4j database.";
-		Icon icon = new ImageIcon("resources/ic_sync.png");
+		Icon icon = new ImageIcon(getClass().getResource("/resources/ic_sync.png"));
 		JLabel label = new JLabel(msg, icon, JLabel.LEADING);
 		add(label, BorderLayout.CENTER);
 		setVisible(true);

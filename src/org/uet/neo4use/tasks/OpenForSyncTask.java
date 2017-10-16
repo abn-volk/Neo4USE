@@ -1,7 +1,11 @@
 package org.uet.neo4use.tasks;
 
+import java.awt.BorderLayout;
 import java.io.File;
+import java.net.URL;
 
+import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.SwingWorker;
 import javax.swing.event.InternalFrameEvent;
 import javax.swing.event.InternalFrameListener;
@@ -11,7 +15,6 @@ import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.api.UseSystemApi;
 import org.tzi.use.gui.main.MainWindow;
 import org.tzi.use.gui.main.ViewFrame;
-import org.tzi.use.gui.views.View;
 import org.uet.neo4use.views.ListenerDialog;
 
 public class OpenForSyncTask extends SwingWorker<Void, Void> {
@@ -36,8 +39,10 @@ public class OpenForSyncTask extends SwingWorker<Void, Void> {
 	@Override
 	protected void done() {
 		super.done();
-		View listener = new ListenerDialog(graphDb, fMainWindow.logWriter(), fSystemApi);
-		ViewFrame vf = new ViewFrame("Neo4j synchronisation", listener, "/resources/ic_sync.png");
+		ListenerDialog listener = new ListenerDialog(graphDb, fMainWindow.logWriter(), fSystemApi);
+		URL url = getClass().getResource("/resources/ic_sync.png");
+		ViewFrame vf = new ViewFrame("Neo4j synchronisation", listener, "");
+		vf.setFrameIcon(new ImageIcon(url));
 		vf.addInternalFrameListener(new InternalFrameListener() {
 			@Override
 			public void internalFrameActivated(InternalFrameEvent e) {
@@ -62,6 +67,9 @@ public class OpenForSyncTask extends SwingWorker<Void, Void> {
 			public void internalFrameOpened(InternalFrameEvent e) {
 			}
 		});
+		JComponent c = (JComponent) vf.getContentPane();
+		c.setLayout(new BorderLayout());
+		c.add(listener, BorderLayout.CENTER);
 		fMainWindow.addNewViewFrame(vf);
 	}
 }
