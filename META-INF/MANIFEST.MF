@@ -1,7 +1,8 @@
 Manifest-Version: 0.1
 Plugin-Name: Neo4USE
 Plugin-Version: 0.1
-Class-Path:  neo4use/asm-5.2.jar 
+Main-Class: org.uet.neo4use.plugin.Neo4USEPlugin
+Class-Path: neo4use/asm-5.2.jar 
  neo4use/bcpkix-jdk15on-1.53.jar 
  neo4use/bcprov-jdk15on-1.53.jar 
  neo4use/caffeine-2.3.3.jar 
@@ -52,5 +53,4 @@ Class-Path:  neo4use/asm-5.2.jar
  neo4use/parboiled-scala_2.11-1.1.7.jar 
  neo4use/scala-library-2.11.8.jar 
  neo4use/scala-reflect-2.11.8.jar
-Main-Class: org.uet.neo4use.plugin.Neo4USEPlugin
 Plugin-Publisher: UET

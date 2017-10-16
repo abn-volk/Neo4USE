@@ -11,9 +11,78 @@
    	  <artifactId>neo4j</artifactId>
    	  <version>3.2.3</version>
   	</dependency>
+  	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>antlr-3.4-complete.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>combinatoricslib-0.2.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>gsbase.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>guava-17.0.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>itextpdf-5.5.2.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>jruby-1.7.2.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>lablib-checkboxtree-3.2.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>use-gui.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>use.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>use-runtime.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
+	<dependency>
+	  <groupId>uet</groupId>
+	  <artifactId>vtd-xml.jar</artifactId>
+	  <version>0.0.1</version>
+	</dependency>
   </dependencies>
+  
   <build>
     <sourceDirectory>src</sourceDirectory>
+    <resources>
+   	  <resource>
+        <directory>resources</directory>
+        <targetPath>resources</targetPath>
+      </resource>
+      <resource>
+      	<directory>.</directory>
+      	<includes>
+      	  <include>useplugin.xml</include>
+      	  <include>README.md</include>
+      	</includes>
+      </resource>
+   	</resources>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -28,9 +97,53 @@
         <artifactId>maven-dependency-plugin</artifactId>
         <configuration>
           <outputDirectory>
-            ${project.build.directory}
+            ${project.build.directory}/dependencies
           </outputDirectory>
         </configuration>
+      </plugin>
+       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <artifactSet>
+                <excludes>
+                  <exclude>uet:*</exclude>       
+                </excludes>
+              </artifactSet>
+              <!-- Exclude other JARs' signatures to prevent SecurityException when loading class -->
+              <filters>
+		        <filter>
+	              <artifact>*:*</artifact>
+	              <excludes>
+	                <exclude>META-INF/*.SF</exclude>
+	                <exclude>META-INF/*.DSA</exclude>
+	                <exclude>META-INF/*.RSA</exclude>
+	              </excludes>
+		        </filter>
+	    	  </filters>
+              <transformers>
+              	<!-- Add a transformer to exclude any other manifest files (possibly from dependencies). -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+                   <resource>MANIFEST.MF</resource>
+                </transformer>
+                <!-- Add a transformer to include your custom manifest file. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.IncludeResourceTransformer">
+                  <resource>META-INF/MANIFEST.MF</resource>
+                  <file>META-INF/MANIFEST.MF</file>
+                </transformer>
+                <!-- Deal with META-INF/services/ in some jar files -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
