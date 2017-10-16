@@ -17,7 +17,6 @@ import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
-import org.neo4j.graphdb.ResourceIterator;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.tzi.use.gui.main.MainWindow;
@@ -102,12 +101,17 @@ public class ExportTask extends SwingWorker<Boolean, Void> {
 		String name = obj.name();
 		Label label = Label.label(obj.cls().name());
 		try (Transaction tx = graphDb.beginTx()) {
-			ResourceIterator<Node> nodes = graphDb.findNodes(label, "__name", name);
-			if (nodes.hasNext()) {
+			try {
+				Node node = graphDb.findNode(label, "__name", name);
+				if (node != null) {
+					tx.success();
+					return node;
+				}
 				tx.success();
-				return nodes.next();
 			}
-			else tx.success();
+			catch (MultipleFoundException e) {
+				fLogWriter.println(String.format("Error: Multiple node found for %s.", name));
+			}
 		}
 		try (Transaction tx = graphDb.beginTx()) {
 			fLogWriter.println(String.format("Creating object %s...", obj.name()));

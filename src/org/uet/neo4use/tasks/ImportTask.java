@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -30,6 +31,9 @@ import org.tzi.use.uml.mm.MAssociationEnd;
 import org.tzi.use.uml.ocl.type.CollectionType;
 import org.tzi.use.uml.ocl.type.Type;
 import org.tzi.use.uml.ocl.type.Type.VoidHandling;
+import org.tzi.use.uml.sys.MLink;
+import org.tzi.use.uml.sys.MLinkEnd;
+import org.tzi.use.uml.sys.MLinkObject;
 import org.tzi.use.uml.sys.MObject;
 
 public class ImportTask extends SwingWorker<Boolean, Void> {
@@ -121,7 +125,7 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 			tx.success();
 		}
 		try (Transaction tx = graphDb.beginTx()) {
-			ResourceIterator<Node> objNodes = graphDb.findNodes(Label.label("__Object"));
+			ResourceIterator<Node> objNodes = graphDb.findNodes(Label.label("__LinkObject"));
 			while (objNodes.hasNext()) {
 				Node node = objNodes.next();
 				if (!importReferences(node)) return false;
@@ -167,17 +171,54 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 	}
 	
 	private boolean importReferences(Node node) {
-		Object useName = node.getProperty("__name", null);
-		if (useName == null || !(useName instanceof String)) {
-			fLogWriter.println(String.format("Error: Node with id %d must have the __name attribute with a string value!", node.getId()));
-			return false;
+		boolean isLinkObject = node.hasLabel(Label.label("__LinkObject"));
+		if (!isLinkObject) {
+			Object useName = node.getProperty("__name", null);
+			if (useName == null || !(useName instanceof String)) {
+				fLogWriter.println(String.format("Error: Node with id %d must have the __name attribute with a string value!", node.getId()));
+				return false;
+			}
+			String name = (String) useName;
+			MObject obj = fSystemApi.getObject(name); 
+			if (obj == null) {
+				fLogWriter.println(String.format("Error when importing %s's references: Object not found.", name));
+				return false;
+			}
+			if (!importReferencesForObject(node, obj)) return false;
 		}
-		String name = (String) useName;
-		MObject obj = fSystemApi.getObject(name); 
-		if (obj == null) {
-			fLogWriter.println(String.format("Error when importing %s's references: Object not found.", name));
-			return false;
+		else {
+			for (MLink lnk : fSystemApi.getSystem().state().allLinks()) {
+				if (lnk instanceof MLinkObject) {
+					if (matchNodeToLink(node, lnk.linkEnds())) {
+						if (!importReferencesForObject(node, ((MObject) lnk))) return false;
+					}
+				}
+			}
 		}
+		return true;
+	}
+	
+	private boolean matchNodeToLink(Node node, Set<MLinkEnd> ends) {
+		for (MLinkEnd end : ends) {
+			boolean hasMatch = false;
+			for (Relationship rela : node.getRelationships(Direction.OUTGOING)) {
+				if (rela.getType().name().equals(end.associationEnd().nameAsRolename())) {
+					Object endNodeName = rela.getEndNode().getProperty("__name", null);
+					if (endNodeName instanceof String && end.object().name().equals((String) endNodeName)) {
+						hasMatch = true;
+					}
+					else
+						return false;
+				}
+			}
+			if (!hasMatch) return false;
+		}
+		return true;
+	}
+	
+	private boolean importReferencesForObject(Node node, MObject obj) {
+		String name = obj.name();
+		boolean isLinkObject = obj instanceof MLinkObject;
 		// Import object and collections of object
 		Iterable<Relationship> relas = node.getRelationships(Direction.OUTGOING);
 		Map<String, ArrayList<Relationship>> refs = new HashMap<String, ArrayList<Relationship>>();
@@ -185,6 +226,12 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 			// A single object reference
 			if (!rela.hasProperty("__index")) {
 				String attrName = rela.getType().name();
+				if (isLinkObject) {
+					// Ignore link object's link ends
+					if (obj.cls().attribute(attrName, true) == null)
+						continue;
+				}
+				fLogWriter.println(String.format("Importing %s.%s...", name, attrName));
 				Object objName = rela.getEndNode().getProperty("__name");
 				if (objName == null || !(objName instanceof String)) {
 					fLogWriter.println(String.format("Error: Node id %d has invalid __name.", rela.getEndNode().getId()));
@@ -201,7 +248,7 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 			// Collections of objects
 			else {
 				String type = rela.getType().name();
-				if (rela.hasProperty("__index") && rela.getProperty("__index") instanceof Integer) {
+				if (rela.getProperty("__index") instanceof Integer) {
 					if (refs.get(type) == null) 
 						refs.put(type, new ArrayList<Relationship>());
 					refs.get(type).add(rela);
