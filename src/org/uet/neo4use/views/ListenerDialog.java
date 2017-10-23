@@ -71,12 +71,11 @@ public class ListenerDialog extends JPanel implements View {
 	@Subscribe
     public void onObjectCreated(ObjectCreatedEvent e) {
 		MObject obj = e.getCreatedObject();
-		fLogWriter.println(String.format("Sync: Object %s added.", obj.name()));
 		try(Transaction tx = graphDb.beginTx()) {
 			Node node = graphDb.createNode(Label.label("__Object"), Label.label(obj.cls().name()));
 			String objName = obj.name();
 			node.setProperty("__name", objName);
-			fLogWriter.println("Neo4j node created.");
+			fLogWriter.println(String.format("Sync: Object %s added.", objName));
 			tx.success();
 		}
 	}
@@ -84,18 +83,17 @@ public class ListenerDialog extends JPanel implements View {
 	@Subscribe
     public void onObjectDestroyed(ObjectDestroyedEvent e) {
 		MObject obj = e.getDestroyedObject();
-		fLogWriter.println(String.format("Sync: Object %s destroyed.", obj.name()));
 		if (!(obj instanceof MLinkObject)) {
 			try(Transaction tx = graphDb.beginTx()) {
 				try {
 					Node node = graphDb.findNode(Label.label(obj.cls().name()), "__name", obj.name());
 					if (node != null) deleteNode(node);
+					fLogWriter.println(String.format("Sync: Object %s destroyed.", obj.name()));
 					tx.success();
 				}
 				catch (MultipleFoundException ex) {
 					fLogWriter.println(String.format("Error: Multiple node found for %s.", obj.name()));
 				}
-				catch (NotFoundException ignored) {} 
 			}
 		}
 	}
@@ -106,9 +104,15 @@ public class ListenerDialog extends JPanel implements View {
 			if (rela.getEndNodeId() == node.getId()) {
 				deleteNode(rela.getStartNode());
 			}
-			rela.delete();
+			try {
+				rela.delete();
+			}
+			catch (NotFoundException ignored) {} 
 		}
-		node.delete();
+		try {
+			node.delete();
+		}
+		catch (NotFoundException ignored) {} 
 	}
 	
 	@Subscribe
@@ -267,7 +271,6 @@ public class ListenerDialog extends JPanel implements View {
 	@Subscribe
 	public void onLinkInserted(LinkInsertedEvent e) {
 		MLink lnk = e.getLink();
-		fLogWriter.println(String.format("Sync: Link %s added between %d objects.", e.getAssociation().name(), e.getAssociation().associationEnds().size()));
 		boolean isLinkObject = lnk instanceof MLinkObject;
 		Set<MLinkEnd> linkEnds = lnk.linkEnds();
 		try (Transaction tx = graphDb.beginTx()) {
@@ -284,7 +287,7 @@ public class ListenerDialog extends JPanel implements View {
 					tx.failure();
 				}
 			}
-			fLogWriter.println("Neo4j node and links created successfully.");
+			fLogWriter.println(String.format("Sync: Link %s added between %d objects.", e.getAssociation().name(), e.getAssociation().associationEnds().size()));
 			tx.success();
 		}
 	}
@@ -292,17 +295,16 @@ public class ListenerDialog extends JPanel implements View {
 	@Subscribe
 	public void onLinkDeleted(LinkDeletedEvent e) {
 		MLink lnk = e.getLink();
-		fLogWriter.println(String.format("Sync: Link %s deleted between %d objects.", e.getAssociation().name(), e.getAssociation().associationEnds().size()));
 		try (Transaction tx = graphDb.beginTx()) {
 			ResourceIterator<Node> nodes = graphDb.findNodes(Label.label(e.getAssociation().name()));
 			while (nodes.hasNext()) {
 				Node node = nodes.next();
-				if (matchNodeToLink(node, lnk.linkEnds())) {
+				if (matchNodeToLink(node, lnk.linkEnds()))
 					deleteNode(node);
-				}
 			}
+			fLogWriter.println(String.format("Sync: Link %s deleted between %d objects.", e.getAssociation().name(), e.getAssociation().associationEnds().size()));
+			tx.success();
 		}
-		catch (NotFoundException ignored) {} 
 	}
 	
 	private boolean matchNodeToLink(Node node, Set<MLinkEnd> ends) {
