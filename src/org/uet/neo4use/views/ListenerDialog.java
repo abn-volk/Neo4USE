@@ -16,6 +16,7 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.MultipleFoundException;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.NotFoundException;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ResourceIterator;
@@ -94,6 +95,7 @@ public class ListenerDialog extends JPanel implements View {
 				catch (MultipleFoundException ex) {
 					fLogWriter.println(String.format("Error: Multiple node found for %s.", obj.name()));
 				}
+				catch (NotFoundException ignored) {} 
 			}
 		}
 	}
@@ -300,6 +302,7 @@ public class ListenerDialog extends JPanel implements View {
 				}
 			}
 		}
+		catch (NotFoundException ignored) {} 
 	}
 	
 	private boolean matchNodeToLink(Node node, Set<MLinkEnd> ends) {
