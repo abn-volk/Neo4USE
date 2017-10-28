@@ -147,9 +147,11 @@ public class ExportTask extends SwingWorker<Boolean, Void> {
 	
 	private boolean createLinkObject(MLinkObject lnk) {
 		String assocName = lnk.association().name();
-		fLogWriter.println(String.format("Creating link object: %s:%s", lnk.name(), lnk.association().name()));			
+		String name = lnk.name();
+		fLogWriter.println(String.format("Creating link object: %s:%s", name, assocName));			
 		try (Transaction tx = graphDb.beginTx()) {
 			Node linkNode = graphDb.createNode(Label.label("__LinkObject"), Label.label(assocName));
+			linkNode.setProperty("__name", name);
 			Set<MLinkEnd> ends = lnk.linkEnds();
 			for (MLinkEnd e : ends) {
 				MObject obj = e.object();

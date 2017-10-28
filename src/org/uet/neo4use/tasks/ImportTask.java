@@ -370,7 +370,12 @@ public class ImportTask extends SwingWorker<Boolean, Void> {
 		try {
 			String[] connectedObjectNames = objNames.toArray(new String[objNames.size()]);
 			if (isLinkObj) {
-				MObject obj = fSystemApi.createLinkObject(label, fSystemApi.getSystem().getUniqueNameGenerator().generate(asc.name()), connectedObjectNames);
+				Object linkName = node.getProperty("__name");
+				if (linkName == null || !(linkName instanceof String)) {
+					fLogWriter.println(String.format("Error: Node id %d has invalid __name.", node.getId()));
+					return false;
+				}
+				MObject obj = fSystemApi.createLinkObject(label, (String) linkName,connectedObjectNames);
 				if (!importAttributes(obj, node)) return false;
 			}
 			else

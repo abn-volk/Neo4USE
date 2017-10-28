@@ -71,12 +71,14 @@ public class ListenerDialog extends JPanel implements View {
 	@Subscribe
     public void onObjectCreated(ObjectCreatedEvent e) {
 		MObject obj = e.getCreatedObject();
-		try(Transaction tx = graphDb.beginTx()) {
-			Node node = graphDb.createNode(Label.label("__Object"), Label.label(obj.cls().name()));
-			String objName = obj.name();
-			node.setProperty("__name", objName);
-			fLogWriter.println(String.format("Sync: Object %s added.", objName));
-			tx.success();
+			if (!(obj instanceof MLinkObject)) {
+			try(Transaction tx = graphDb.beginTx()) {
+				Node node = graphDb.createNode(Label.label("__Object"), Label.label(obj.cls().name()));
+				String objName = obj.name();
+				node.setProperty("__name", objName);
+				fLogWriter.println(String.format("Sync: Object %s added.", objName));
+				tx.success();
+			}
 		}
 	}
 	
@@ -276,6 +278,8 @@ public class ListenerDialog extends JPanel implements View {
 		try (Transaction tx = graphDb.beginTx()) {
 			String qualifierLabel = isLinkObject? "__LinkObject" : "__Link";
 			Node linkNode = graphDb.createNode(Label.label(qualifierLabel), Label.label(lnk.association().name()));
+			if (isLinkObject) 
+				linkNode.setProperty("__name", ((MLinkObject) lnk).name());
 			for (MLinkEnd end : linkEnds) {
 				MObject endObj = end.object();
 				try {
